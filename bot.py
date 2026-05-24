@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 
+from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
@@ -15,6 +16,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 # ============================================================
 #  НАСТРОЙКИ
@@ -23,6 +25,10 @@ from aiogram.types import (
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 if not BOT_TOKEN:
     raise RuntimeError("Переменная окружения BOT_TOKEN не задана!")
+
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
+PORT = int(os.environ.get("PORT", "10000"))
+USE_WEBHOOK = bool(WEBHOOK_URL)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -371,9 +377,38 @@ async def on_any_message(message: Message) -> None:
 #  ЗАПУСК
 # ============================================================
 
+async def on_startup(bot_instance: Bot) -> None:
+    webhook_path = f"/webhook/{BOT_TOKEN}"
+    await bot_instance.set_webhook(f"{WEBHOOK_URL}{webhook_path}")
+    logger.info("Webhook set to %s", WEBHOOK_URL)
+
+
 async def main() -> None:
     logger.info("Бот «Цифровой щит» запускается...")
-    await dp.start_polling(bot)
+
+    if USE_WEBHOOK:
+        dp.startup.register(on_startup)
+
+        app = web.Application()
+        webhook_path = f"/webhook/{BOT_TOKEN}"
+        handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+        handler.register(app, path=webhook_path)
+        setup_application(app, dp, bot=bot)
+
+        # Health-check endpoint (keeps Render from sleeping)
+        async def health(request):
+            return web.Response(text="OK")
+        app.router.add_get("/", health)
+        app.router.add_get("/health", health)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", PORT)
+        await site.start()
+        logger.info("Webhook server running on port %d", PORT)
+        await asyncio.Event().wait()
+    else:
+        await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
