@@ -377,9 +377,9 @@ async def on_any_message(message: Message) -> None:
 #  ЗАПУСК
 # ============================================================
 
-async def on_startup(bot_instance: Bot) -> None:
+async def on_startup(**kwargs) -> None:
     webhook_path = f"/webhook/{BOT_TOKEN}"
-    await bot_instance.set_webhook(f"{WEBHOOK_URL}{webhook_path}")
+    await bot.set_webhook(f"{WEBHOOK_URL}{webhook_path}")
     logger.info("Webhook set to %s", WEBHOOK_URL)
 
 
