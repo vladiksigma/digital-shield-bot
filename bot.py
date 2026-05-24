@@ -377,25 +377,21 @@ async def on_any_message(message: Message) -> None:
 #  ЗАПУСК
 # ============================================================
 
-async def on_startup(**kwargs) -> None:
-    webhook_path = f"/webhook/{BOT_TOKEN}"
-    await bot.set_webhook(f"{WEBHOOK_URL}{webhook_path}")
-    logger.info("Webhook set to %s", WEBHOOK_URL)
-
-
 async def main() -> None:
     logger.info("Бот «Цифровой щит» запускается...")
 
     if USE_WEBHOOK:
-        dp.startup.register(on_startup)
+        webhook_path = f"/webhook/{BOT_TOKEN}"
+        webhook_url = f"{WEBHOOK_URL}{webhook_path}"
+
+        await bot.set_webhook(webhook_url)
+        logger.info("Webhook set to %s", WEBHOOK_URL)
 
         app = web.Application()
-        webhook_path = f"/webhook/{BOT_TOKEN}"
         handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
         handler.register(app, path=webhook_path)
         setup_application(app, dp, bot=bot)
 
-        # Health-check endpoint (keeps Render from sleeping)
         async def health(request):
             return web.Response(text="OK")
         app.router.add_get("/", health)
